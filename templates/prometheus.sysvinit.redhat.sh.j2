@@ -44,7 +44,9 @@ ALERTMANAGER_OPTS=
 DAEMON_OPTS="$ALERTMANAGER_OPTS"
 DAEMON_OPTS="$DAEMON_OPTS -config.file=$CONFIG  -storage.local.path={{ prometheus_db_path }}"
 DAEMON_OPTS="$DAEMON_OPTS -web.console.templates={{ prometheus_install_path }}/consoles  -web.console.libraries={{ prometheus_install_path }}/console_libraries"
-
+{% if prometheus_daemon_opts is defined %}
+DAEMON_OPTS="$DAEMON_OPTS {{ prometheus_daemon_opts }}"
+{% endif %}
 
 
 # Check if DAEMON binary exist
