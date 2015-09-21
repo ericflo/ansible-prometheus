@@ -6,18 +6,19 @@
 # @see http://prometheus.io/docs/introduction/getting_started/
 #
 
-
 - name: set internal variables for convenience
   set_fact:
     prometheus_tarball_url: "https://github.com/prometheus/prometheus/releases/download/{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
     prometheus_subdir: "{{ prometheus_install_path }}/prometheus-{{ prometheus_version }}.linux-amd64"
-  when: ansible_userspace_bits == "64"
+    prometheus_untar_path: "{{ prometheus_install_path }}"
+  when: prometheus_version != "git" and ansible_userspace_bits == "64"
 
 - name: set internal variables for convenience
   set_fact:
     prometheus_tarball_url: "https://github.com/prometheus/prometheus/releases/download/{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-386.tar.gz"
     prometheus_subdir: "{{ prometheus_install_path }}/prometheus-{{ prometheus_version }}.linux-386"
-  when: ansible_userspace_bits == "32"
+    prometheus_untar_path: "{{ prometheus_install_path }}"
+  when: prometheus_version != "git" and ansible_userspace_bits == "32"
 
 - name: set daemon dir for < 0.16
   set_fact:
@@ -29,7 +30,64 @@
     prometheus_daemon_dir: "{{ prometheus_subdir }}"
   when: prometheus_version | version_compare('0.16', '>=')
 
+- name: set internal variables for convenience
+  set_fact:
+    prometheus_tarball_url: "https://github.com/prometheus/prometheus/archive/master.tar.gz"
+    prometheus_untar_path: "{{ prometheus_download_path }}/prometheus_workdir/gopath/src/github.com/prometheus"
+  when: prometheus_version == "git"
 
+- name: create initial directory structure
+  file: path="{{ prometheus_untar_path }}" state=directory
+  when: prometheus_version == "git"
+
+- name: download prometheus tarball
+  get_url: url="{{ prometheus_tarball_url }}"  dest="{{ prometheus_download_path }}/prometheus.tar.gz"
+
+- name: untar prometheus tarball
+  unarchive:
+    src: "{{ prometheus_download_path }}/prometheus.tar.gz"
+    dest: "{{ prometheus_untar_path }}"
+    copy: no
+
+- name: move prometheus-master to prometheus
+  command: "mv {{ prometheus_untar_path }}/prometheus-master {{ prometheus_untar_path }}/prometheus"
+  when: prometheus_version == "git"
+
+- name: install temporary go
+  shell: "{{ prometheus_untar_path }}/prometheus/scripts/goenv.sh {{ prometheus_download_path }}/prometheus_workdir/go {{ prometheus_download_path }}/prometheus_workdir/gopath"
+  when: prometheus_version == "git"
+
+- name: determine installed go
+  command: "ls {{ prometheus_download_path }}/prometheus_workdir/go/"
+  when: prometheus_version == "git"
+  register: go_version
+
+- name: build prometheus
+  command: make build
+  args:
+    chdir: "{{ prometheus_untar_path }}/prometheus"
+    creates: prometheus
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ prometheus_download_path }}/prometheus_workdir/go/{{ go_version.stdout }}/bin"
+    GOPATH: "{{ prometheus_download_path }}/prometheus_workdir/gopath"
+    GOROOT: "{{ prometheus_download_path }}/prometheus_workdir/go/{{ go_version.stdout }}"
+  when: prometheus_version == "git"
+
+- name: remove existing consoles and console_libraries directories, if they exist
+  command: "rm -rf {{ prometheus_install_path }}/{{ item }}"
+  with_items:
+    - consoles
+    - console_libraries
+  when: prometheus_version == "git"
+
+- name: move the built prometheus to the install path
+  command: "mv {{ prometheus_untar_path }}/prometheus/{{ item }} {{ prometheus_install_path }}"
+  with_items:
+    - prometheus
+    - promtool
+    - consoles
+    - console_libraries
+  when: prometheus_version == "git"
 
 - name: mkdir for config and data
   file:
@@ -43,23 +101,6 @@
     - "{{ prometheus_file_sd_config_path }}"
     - "{{ prometheus_db_path }}"
 
-
-
-
-- name: download prometheus tarball
-  get_url: url="{{ prometheus_tarball_url }}"  dest="{{ prometheus_download_path }}/prometheus.tar.gz"
-
-- name: uutar prometheus tarball
-  unarchive:
-    src: "{{ prometheus_download_path }}/prometheus.tar.gz"
-    dest: "{{ prometheus_install_path }}"
-    owner: "{{ prometheus_user }}"
-    group: "{{ prometheus_group }}"
-    mode: "go-w"
-    copy: no
-
-
-
 - name: set prometheus variables
   copy: src="../files/etc-default-prometheus"  dest=/etc/default/prometheus
 
@@ -68,8 +109,6 @@
 
 - name: set INIT status
   service: name=prometheus enabled=yes
-
-
 
 - name: copy prometheus main config file from role's default, if necessary
   template: src=../templates/prometheus.yml.j2  dest="{{ prometheus_config_path }}/prometheus.yml"
@@ -88,3 +127,7 @@
   with_dict: prometheus_rule_files | default({})
   notify:
     - restart prometheus
+
+- name: delete the prometheus directory if it already exists
+  file: path="{{ prometheus_download_path }}/prometheus_workdir" state=absent
+  when: prometheus_version == "git"
