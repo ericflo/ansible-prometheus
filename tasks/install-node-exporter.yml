@@ -9,24 +9,26 @@
 - name: set internal variables for convenience
   set_fact:
     prometheus_node_exporter_tarball_url: "https://github.com/prometheus/node_exporter/releases/download/{{ prometheus_node_exporter_version }}/node_exporter-{{ prometheus_node_exporter_version }}.linux-amd64.tar.gz"
-    prometheus_untar_path: "{{ prometheus_install_path }}"
+    prometheus_node_exporter_untar_path: "{{ prometheus_install_path }}"
   when: prometheus_node_exporter_version != "git" and ansible_userspace_bits == "64"
 
 - name: set internal variables for convenience
   set_fact:
     prometheus_node_exporter_tarball_url: "https://github.com/prometheus/node_exporter/releases/download/{{ prometheus_node_exporter_version }}/node_exporter-{{ prometheus_node_exporter_version }}.linux-386.tar.gz"
-    prometheus_untar_path: "{{ prometheus_install_path }}"
+    prometheus_node_exporter_untar_path: "{{ prometheus_install_path }}"
   when: prometheus_node_exporter_version != "git" and ansible_userspace_bits == "32"
 
 - name: set internal variables for convenience
   set_fact:
     prometheus_node_exporter_tarball_url: "https://github.com/prometheus/node_exporter/archive/master.tar.gz"
-    prometheus_untar_path: /tmp
+    prometheus_node_exporter_untar_path: "{{ prometheus_download_path }}"
   when: prometheus_node_exporter_version == "git"
 
-- name: delete the node_exporter directory if it already exists
-  file: path="{{ prometheus_download_path }}/node_exporter-master" state=absent
-  when: prometheus_node_exporter_version == "git"
+
+
+- name: delete the node_exporter build directory, if necessary
+  file: path="{{ prometheus_node_exporter_untar_path }}/node_exporter-master" state=absent
+  when: prometheus_node_exporter_version == "git" and prometheus_rebuild
 
 - name: download node_exporter tarball
   get_url: url="{{ prometheus_node_exporter_tarball_url }}" dest="{{ prometheus_download_path }}/node_exporter.tar.gz" force=yes
@@ -34,18 +36,20 @@
 - name: untar node_exporter tarball
   unarchive:
     src: "{{ prometheus_download_path }}/node_exporter.tar.gz"
-    dest: "{{ prometheus_untar_path }}"
+    dest: "{{ prometheus_node_exporter_untar_path }}"
     copy: no
 
-- name: build node_exporter
+- name: build node_exporter source code
   command: make
   args:
-    chdir: "{{ prometheus_download_path }}/node_exporter-master"
+    chdir: "{{ prometheus_node_exporter_untar_path }}/node_exporter-master"
     creates: node_exporter
   when: prometheus_node_exporter_version == "git"
 
-- name: move the built node_exporter to the install path
-  command: "mv {{ prometheus_download_path }}/node_exporter-master/node_exporter {{ prometheus_install_path }}"
+- name: copy the built node_exporter to the install path
+  command: "cp {{ prometheus_node_exporter_untar_path }}/node_exporter-master/node_exporter {{ prometheus_install_path }}"
+  args:
+    creates: "{{ prometheus_install_path }}/node_exporter"
   when: prometheus_node_exporter_version == "git"
 
 - name: set permissions, owner and group
@@ -66,4 +70,8 @@
   template: src="../templates/node_exporter.sysvinit.{{ ansible_os_family|lower }}.sh.j2"  dest="/etc/init.d/node_exporter"  mode="a+x"
 
 - name: set INIT status
-  service: name=node_exporter enabled=yes state=restarted
+  service: name=node_exporter enabled=yes
+
+- name: set INIT status and start
+  service: name=node_exporter state=started
+  when: prometheus_use_service|bool

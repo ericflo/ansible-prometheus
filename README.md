@@ -12,7 +12,7 @@ Role name in Ansible Galaxy: **[williamyeh.prometheus](https://galaxy.ansible.co
 
 This Ansible role has the following features for [Prometheus](http://prometheus.io/):
 
- - Install specific versions of Prometheus server, node_exporter, consul_exporter, and alertmanager.
+ - Install specific versions of [Prometheus server](https://github.com/prometheus/prometheus), [Node exporter](https://github.com/prometheus/node_exporter), [Consul exporter](https://github.com/prometheus/consul_exporter), and [Alertmanager](https://github.com/prometheus/alertmanager).
  - Handlers for restart/reload/stop events;
  - Bare bone configuration (*real* configuration should be left to user's template files; see **Usage** section below).
 
@@ -21,18 +21,6 @@ This Ansible role has the following features for [Prometheus](http://prometheus.
 
 ## Role Variables
 
-### Versioning note
-For all 3 of the possible `prometheus_components` you can set the respective version to `git` to download the latest code and compile from the Prometheus repositories.
-There are no external requirements needed to compile from source, as Prometheus provides them all via the install scripts.
-Git, Mercurial, GZip and Curl will be installed from your package manager (yum or apt). If you already have all dependencies, nothing will be installed.
-
-For example, you can set all three variables to `git` to get the latest code for each component.
-
-```yaml
-prometheus_version: git
-prometheus_node_exporter_version: git
-prometheus_alertmanager_version: git
-```
 
 ### Mandatory variables
 
@@ -83,14 +71,13 @@ gosu_version:  1.4
 ```
 
 
-
 ### Optional variables: Prometheus server
 
 User-configurable defaults:
 
 ```yaml
 # which version?
-prometheus_version:  0.15.1
+prometheus_version:  0.16.1
 
 
 
@@ -140,6 +127,13 @@ prometheus_alertmanager_url
 ```
 
 
+Additional command-line arguments, if any (use `prometheus --help` to see the full list of arguments):
+
+```yaml
+prometheus_opts
+```
+
+
 ### Optional variables: Node exporter
 
 
@@ -150,31 +144,59 @@ User-configurable defaults:
 prometheus_node_exporter_version:  0.11.0
 ```
 
+Additional command-line arguments, if any (use `node_exporter --help` to see the full list of arguments):
+
+```yaml
+prometheus_node_exporter_opts
+```
 
 
-### Optional variables: Alert manager
+### Optional variables: Alertmanager
 
 
 User-configurable defaults:
 
 ```yaml
 # which version?
-prometheus_alertmanager_version:  0.0.3
+prometheus_alertmanager_version:  0.0.4
 
-# directory for runtime database
-prometheus_db_path:   /var/lib/prometheus
+# directory for runtime database (currently for `silences.json`)
+prometheus_alertmanager_db_path: /var/lib/alertmanager
 ```
 
-
-
 User-installable alertmanager conf file (see [doc](http://prometheus.io/docs/alerting/alertmanager/) for details):
-
 
 ```yaml
 # main conf template relative to `playbook_dir`;
 # to be installed to "{{ prometheus_config_path }}/alertmanager.conf"
 prometheus_alertmanager_conf
+```
 
+Additional command-line arguments, if any (use `alertmanager --help` to see the full list of arguments):
+
+```yaml
+prometheus_alertmanager_opts
+```
+
+
+### Optional: building from source
+
+For aforementioned `prometheus_components`, you can optionally download/compile from the *master* branch of Prometheus repositories by setting the respective version to `git`.
+
+There are no external requirements needed to compile from source, as Prometheus provides them all via the install scripts. Git, Mercurial, GZip, Curl, and Wget will be installed from your package manager (yum or apt). If you already have all dependencies, nothing will be installed.
+
+For example, you can set all three variables to `git` to get the latest code for each component:
+
+```yaml
+prometheus_version: git
+prometheus_node_exporter_version: git
+prometheus_alertmanager_version: git
+```
+
+If you'd like to force rebuild each time, enable the following variable (default is `false`):
+
+```yaml
+prometheus_rebuild: true
 ```
 
 ### Optional variables: Consul exporter
@@ -198,7 +220,17 @@ Prometheus server:
 
 - `stop prometheus`
 
-Alert manager:
+
+Node exporter:
+
+- `restart node_exporter`
+
+- `reload node_exporter`
+
+- `stop node_exporter`
+
+
+Alertmanager:
 
 - `restart alertmanager`
 
@@ -262,9 +294,13 @@ More practical example:
 ```
 
 
-### Step 4: browse the default Prometheus page
+### Step 4: browse the default Prometheus pages
 
-Open “`http://`HOST`:9090`” in your browser.
+Open the page in your browser:
+
+- Prometheus - `http://`HOST`:9090` or `http://`HOST`:9090/consoles/node.html`
+
+- Alertmanager - `http://`HOST`:9093`
 
 
 ## Dependencies
