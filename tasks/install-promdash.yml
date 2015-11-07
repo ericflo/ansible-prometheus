@@ -25,6 +25,9 @@
 #   bundler: state=latest chdir={{ prometheus_install_path }}/promdash extra_args="--without mysql postgresql"
 #   when: ansible_version.major == 2
 
+- name: create thin directory
+  file: path=/etc/thin state=directory
+
 - name: build thin config
   shell: "/usr/local/bin/thin config -C /etc/thin/promdash.yml -c {{ prometheus_install_path }}/promdash -e production -u {{ prometheus_user }} -g {{ prometheus_group }}"
   args:
