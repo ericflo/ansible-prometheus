@@ -9,13 +9,13 @@
 
 - name: set internal variables for convenience
   set_fact:
-    prometheus_consul_exporter_tarball_url: "https://github.com/prometheus/consul_exporter/releases/download/{{ prometheus_consul_exporter_version }}/consul_exporter-{{ prometheus_consul_exporter_version }}.linux-amd64.tar.gz"
+    prometheus_consul_exporter_tarball_url: "https://github.com/prometheus/consul_exporter/releases/download/v{{ prometheus_consul_exporter_version }}/consul_exporter-{{ prometheus_consul_exporter_version }}.linux-amd64.tar.gz"
     prometheus_untar_path: "{{ prometheus_install_path }}"
   when: prometheus_consul_exporter_version != "git" and ansible_userspace_bits == "64"
 
 - name: set internal variables for convenience
   set_fact:
-    prometheus_consul_exporter_tarball_url: "https://github.com/prometheus/consul_exporter/releases/download/{{ prometheus_consul_exporter_version }}/consul_exporter-{{ prometheus_consul_exporter_version }}.linux-386.tar.gz"
+    prometheus_consul_exporter_tarball_url: "https://github.com/prometheus/consul_exporter/releases/download/v{{ prometheus_consul_exporter_version }}/consul_exporter-{{ prometheus_consul_exporter_version }}.linux-386.tar.gz"
     prometheus_untar_path: "{{ prometheus_install_path }}"
   when: prometheus_consul_exporter_version != "git" and ansible_userspace_bits == "32"
 
